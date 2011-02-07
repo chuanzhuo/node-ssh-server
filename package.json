@@ -1,0 +1,27 @@
+{
+    "name" : "ssh-server",
+    "version" : "0.0.1",
+    "description" : "",
+    "main" : "./index.js",
+    "repository" : {
+        "type" : "git",
+        "url" : "http://github.com/substack/node-browserify.git"
+    },
+    "keywords" : [
+        "browser",
+        "require",
+        "middleware",
+        "npm"
+    ],
+    "dependencies" : {
+        "findit" : ">=0.0.1",
+        "npm" : ">=0.2.16"
+    },
+    "author" : {
+        "name" : "James Halliday",
+        "email" : "mail@substack.net",
+        "url" : "http://substack.net"
+    },
+    "license" : "MIT/X11",
+    "engine" : ["node >=0.2.0"]
+}
