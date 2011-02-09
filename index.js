@@ -4,6 +4,7 @@ var Binary = require('binary');
 var Put = require('put');
 
 var constants = require('./lib/constants');
+var parsers = require('./lib/parsers');
 
 module.exports = function (opts) {
     return net.createServer(session.bind({}, opts || {}));
@@ -36,28 +37,10 @@ function session (opts, stream) {
         .tap(frame.unpack('keyframe'))
         .tap(function (vars) {
             var algos = constants.algorithms.slice();
-            var keyx = Binary.parse(vars.keyframe.payload)
-                .word8('kexinit')
-                .buffer('cookie', 16)
-                .loop(function (end) {
-                    var algo = algos.shift();
-                    if (!algo) end()
-                    else {
-                        this
-                            .word32be(algo.key + '.size')
-                            .buffer(algo.key + '.buffer', algo.key + '.size')
-                            .tap(function (vars) {
-                                vars[algo.key].algorithms = 
-                                    vars[algo.key].buffer.toString().split(',');
-                            })
-                        ;
-                    }
-                })
-                .vars
-            ;
+            var keyx = parsers.keyExchange(vars.keyframe.payload);
             
-            if (keyx.kexinit !== constants.magic.kexinit) {
-                console.error('Non-kexinit response');
+            if (!keyx) {
+                console.error('Key exchange failed');
                 stream.end();
             }
             else {
