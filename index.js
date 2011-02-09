@@ -1,5 +1,4 @@
 var net = require('net');
-
 var Binary = require('binary');
 var Put = require('put');
 
@@ -26,12 +25,9 @@ function session (opts, stream) {
     Binary(stream)
         .scan('client.version', '\r\n')
         .tap(function (vars) {
-            Put()
-                .word8(constants.magic.kexinit)
-                .put(new Buffer(16)) // cookie
-                .put(constants.algorithms.reduce(function (put, algo) {
-                    return put.put(nameList(algo.names))
-                }, Put()).buffer())
+            pack.keyExchange
+                .pack(constants.algorithms)
+                .write(stream)
             ;
         })
         .tap(pack.frame.unpack('keyframe'))
