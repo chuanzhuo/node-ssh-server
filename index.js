@@ -3,52 +3,7 @@ var net = require('net');
 var Binary = require('binary');
 var Put = require('put');
 
-var magic = {
-    kexinit : 20,
-};
-
-var algorithms = [
-    {
-        key : 'kex_algorithms',
-        names : [ 'diffie-hellman-group1-sha1' ],
-    },
-    {
-        key : 'server_host_key_algorithms',
-        names : [],
-    },
-    {
-        key : 'encryption_algorithms_client_to_server',
-        names : [],
-    },
-    {
-        key : 'encryption_algorithms_server_to_client',
-        names : [],
-    },
-    {
-        key : 'mac_algorithms_client_to_server',
-        names : [],
-    },
-    {
-        key : 'mac_algorithms_server_to_client',
-        names : [],
-    },
-    {
-        key : 'compression_algorithms_client_to_server',
-        names : [],
-    },
-    {
-        key : 'compression_algorithms_server_to_client',
-        names : [],
-    },
-    {
-        key : 'languages_client_to_server',
-        names : [],
-    },
-    {
-        key : 'languages_server_to_client',
-        names : [],
-    },
-];
+var constants = require('./lib/constants');
 
 module.exports = function (opts) {
     return net.createServer(session.bind({}, opts || {}));
@@ -71,38 +26,46 @@ function session (opts, stream) {
         .scan('client.version', '\r\n')
         .tap(function (vars) {
             Put()
-                .word8(magic.kexinit)
+                .word8(constants.magic.kexinit)
                 .put(new Buffer(16)) // cookie
-                .put(algorithms.reduce(function (put, algo) {
+                .put(constants.algorithms.reduce(function (put, algo) {
                     return put.put(nameList(algo.names))
                 }, Put()).buffer())
             ;
         })
-        .word32be('frame.packetLen')
-        .word8('frame.paddingLen')
+        .tap(frame.unpack('keyframe'))
         .tap(function (vars) {
-            var frame = vars.frame;
-            frame.payloadLen = frame.packetLen - frame.paddingLen - 1;
-        })
-        .buffer('frame.payload', 'frame.payloadLen')
-        .skip('frame.paddingLen')
-        .tap(function (vars) {
-console.dir(vars.frame.payload.toString());
-            var keyx = Binary.parse(vars.frame.payload)
+            var algos = constants.algorithms.slice();
+            var keyx = Binary.parse(vars.keyframe.payload)
                 .word8('kexinit')
+                .buffer('cookie', 16)
+                .loop(function (end) {
+                    var algo = algos.shift();
+                    if (!algo) end()
+                    else {
+                        this
+                            .word32be(algo.key + '.size')
+                            .buffer(algo.key + '.buffer', algo.key + '.size')
+                            .tap(function (vars) {
+                                vars[algo.key].algorithms = 
+                                    vars[algo.key].buffer.toString().split(',');
+                            })
+                        ;
+                    }
+                })
                 .vars
             ;
-console.dir(keyx);
             
-            if (keyx.kexinit !== magic.kexinit) {
+            if (keyx.kexinit !== constants.magic.kexinit) {
                 console.error('Non-kexinit response');
                 stream.end();
             }
             else {
+console.dir(keyx);
                 Put()
                     .word8(0) // first_kex_packet_follows
                     .word32be(0) // reserved
-                    .write(stream)
+                    //.write(stream)
                 ;
             }
         })
@@ -111,7 +74,9 @@ console.dir(keyx);
     stream.end();
 }
 
-var frame = exports.frame = function (blockSize, payload, mac) {
+var frame = exports.frame = {};
+
+frame.pack = function (blockSize, payload, mac) {
     var knownLen = 4 + 1 + payload.length;
     var padLen = blockSize - (knownLen % blockSize);
     if (padLen < 4) padLen += blockSize;
@@ -126,4 +91,19 @@ var frame = exports.frame = function (blockSize, payload, mac) {
         .put(mac)
         .buffer()
     ;
+};
+
+frame.unpack = function (name) {
+    return function (vs) {
+        this
+            .word32be(name + '.packetLen')
+            .word8(name + '.paddingLen')
+            .tap(function (vars) {
+                var x = vars[name];
+                x.payloadLen = x.packetLen - x.paddingLen - 1;
+            })
+            .buffer(name + '.payload', name + '.payloadLen')
+            .skip(name + '.paddingLen')
+        ;
+    };
 };
