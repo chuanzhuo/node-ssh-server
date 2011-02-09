@@ -17,38 +17,28 @@ function session (opts, stream) {
         .write(stream)
     ;
     
-    function nameList (xs) {
-        var names = new Buffer((xs || []).join(','));
-        return Put().word32be(names.length).put(names).buffer();
-    }
-    
     Binary(stream)
         .scan('client.version', '\r\n')
-        .tap(function (vars) {
-            pack.keyExchange
-                .pack(constants.algorithms)
-                .write(stream)
-            ;
-        })
         .tap(pack.frame.unpack('keyframe'))
         .tap(function (vars) {
-            var algos = constants.algorithms.slice();
-            var keyx = pack.keyExchange.unpack(vars.keyframe.payload);
+            var keyxReq = pack.keyExchange.unpack(vars.keyframe.payload);
+            var keyxRes = pack.keyExchange
+                .pack(constants.algorithms)
+                .buffer()
+            ;
             
-            if (!keyx) {
+            if (!keyxReq) {
                 console.error('Key exchange failed');
                 stream.end();
             }
             else {
-console.dir(keyx);
-                Put()
-                    .word8(0) // first_kex_packet_follows
-                    .word32be(0) // reserved
-                    //.write(stream)
-                ;
+console.dir(keyxReq);
+console.dir(keyxRes);
+                pack.frame.pack(8, Put()
+                    .put(keyxRes)
+                    .buffer()
+                ).write(stream);
             }
         })
     ;
-    
-    stream.end();
 }
