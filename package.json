@@ -1,26 +1,31 @@
 {
     "name" : "ssh-server",
     "version" : "0.0.1",
-    "description" : "",
+    "description" : "A hookable ssh server in node? It's more likely than you'd think!",
     "main" : "./index.js",
     "repository" : {
         "type" : "git",
-        "url" : "http://github.com/substack/node-browserify.git"
+        "url" : "http://github.com/substack/node-ssh-server.git"
     },
     "keywords" : [
-        "browser",
-        "require",
-        "middleware",
-        "npm"
+        "ssh",
+        "server",
+        "tunnel"
     ],
     "dependencies" : {
-        "findit" : ">=0.0.1",
-        "npm" : ">=0.2.16"
+        "put" : ">=0.0.1",
+        "binary" : ">=0.1.4"
     },
     "author" : {
         "name" : "James Halliday",
         "email" : "mail@substack.net",
         "url" : "http://substack.net"
+    },
+    "devDependencies" : {
+        "expresso" : ">=0.6.0"
+    },
+    "scripts" : {
+        "test" : "expresso"
     },
     "license" : "MIT/X11",
     "engine" : ["node >=0.2.0"]
