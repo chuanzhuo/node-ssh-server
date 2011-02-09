@@ -4,7 +4,7 @@ var Binary = require('binary');
 var Put = require('put');
 
 var constants = require('./lib/constants');
-var parsers = require('./lib/parsers');
+var pack = require('./lib/pack');
 
 module.exports = function (opts) {
     return net.createServer(session.bind({}, opts || {}));
@@ -34,10 +34,10 @@ function session (opts, stream) {
                 }, Put()).buffer())
             ;
         })
-        .tap(frame.unpack('keyframe'))
+        .tap(pack.frame.unpack('keyframe'))
         .tap(function (vars) {
             var algos = constants.algorithms.slice();
-            var keyx = parsers.keyExchange(vars.keyframe.payload);
+            var keyx = pack.keyExchange.unpack(vars.keyframe.payload);
             
             if (!keyx) {
                 console.error('Key exchange failed');
@@ -56,37 +56,3 @@ console.dir(keyx);
     
     stream.end();
 }
-
-var frame = exports.frame = {};
-
-frame.pack = function (blockSize, payload, mac) {
-    var knownLen = 4 + 1 + payload.length;
-    var padLen = blockSize - (knownLen % blockSize);
-    if (padLen < 4) padLen += blockSize;
-    
-    var packetLen = 1 + payload.length + padLen;
-    
-    return Put()
-        .word32be(packetLen)
-        .word8(paddingLen)
-        .put(payload)
-        .put(new Buffer(padLen))
-        .put(mac)
-        .buffer()
-    ;
-};
-
-frame.unpack = function (name) {
-    return function (vs) {
-        this
-            .word32be(name + '.packetLen')
-            .word8(name + '.paddingLen')
-            .tap(function (vars) {
-                var x = vars[name];
-                x.payloadLen = x.packetLen - x.paddingLen - 1;
-            })
-            .buffer(name + '.payload', name + '.payloadLen')
-            .skip(name + '.paddingLen')
-        ;
-    };
-};
