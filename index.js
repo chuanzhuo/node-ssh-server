@@ -35,7 +35,8 @@ function session (opts, stream) {
                 stream.end();
             }
             else {
-                frame.pack(8, keyxRes.buffer()).write(stream);
+                frame.pack(8, keyxRes.buffer).write(stream);
+                console.dir(keyxRes.choices);
             }
         })
     ;
