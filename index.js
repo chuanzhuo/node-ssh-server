@@ -1,9 +1,11 @@
 var net = require('net');
 var Binary = require('binary');
 var Put = require('put');
+var Hash = require('hashish');
 
 var constants = require('./lib/constants');
-var pack = require('./lib/pack');
+var keyExchange = require('./lib/key_exchange');
+var frame = require('./lib/frame');
 
 module.exports = function (opts) {
     return net.createServer(session.bind({}, opts || {}));
@@ -19,25 +21,21 @@ function session (opts, stream) {
     
     Binary(stream)
         .scan('client.version', '\r\n')
-        .tap(pack.frame.unpack('keyframe'))
+        .tap(frame.unpack('keyframe'))
         .tap(function (vars) {
-            var keyxReq = pack.keyExchange.unpack(vars.keyframe.payload);
-            var keyxRes = pack.keyExchange
-                .pack(constants.algorithms)
-                .buffer()
-            ;
+            var keyxReq = keyExchange.unpack(vars.keyframe.payload);
+            var keyxRes = keyExchange.response(keyxReq);
             
             if (!keyxReq) {
-                console.error('Key exchange failed');
+                console.error('Failed to parse client key exchange');
+                stream.end();
+            }
+            else if (!keyxRes) {
+                console.error('Key exchange algorithm selection failed');
                 stream.end();
             }
             else {
-console.dir(keyxReq);
-console.dir(keyxRes);
-                pack.frame.pack(8, Put()
-                    .put(keyxRes)
-                    .buffer()
-                ).write(stream);
+                frame.pack(8, keyxRes.buffer()).write(stream);
             }
         })
     ;
