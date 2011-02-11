@@ -14,7 +14,7 @@
     ],
     "dependencies" : {
         "put" : ">=0.0.1",
-        "binary" : ">=0.1.4",
+        "binary" : ">=0.1.5",
         "hashish" : ">=0.0.1"
     },
     "author" : {

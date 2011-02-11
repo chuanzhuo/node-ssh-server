@@ -4,7 +4,7 @@ var Put = require('put');
 var Hash = require('hashish');
 
 var constants = require('./lib/constants');
-var keyExchange = require('./lib/key_exchange');
+var keyExchange = require('./lib/kex');
 var frame = require('./lib/frame');
 
 module.exports = function (opts) {
@@ -36,7 +36,19 @@ function session (opts, stream) {
             }
             else {
                 frame.pack(8, keyxRes.buffer).write(stream);
-                console.dir(keyxRes.choices);
+                vars.choices = keyxRes.choices;
+            }
+        })
+        .tap(function (end) {
+            var negotiation = this.vars.choices.key_algorithms.serverName;
+            if (negotiation === 'diffie-hellman-group1-sha1') {
+                // ultimately generate shared secret K and an exchange hash H
+                var K = null, H = null;
+                var p = 143; // a large safe prime
+                
+            }
+            else {
+                console.error('Unsupported negotiation');
             }
         })
     ;
