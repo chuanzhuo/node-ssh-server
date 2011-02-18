@@ -15,7 +15,8 @@
     "dependencies" : {
         "put" : ">=0.0.1",
         "binary" : ">=0.1.5",
-        "hashish" : ">=0.0.1"
+        "hashish" : ">=0.0.1",
+        "bigint" : ">=0.0.4"
     },
     "author" : {
         "name" : "James Halliday",

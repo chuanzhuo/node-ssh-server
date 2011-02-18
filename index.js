@@ -1,7 +1,7 @@
 var net = require('net');
 var Binary = require('binary');
 var Put = require('put');
-var Hash = require('hashish');
+var bigint = require('bigint');
 
 var constants = require('./lib/constants');
 var keyExchange = require('./lib/kex');
@@ -43,15 +43,16 @@ function session (opts, stream) {
             var negotiation = vars.choices.kex_algorithms.serverName;
             if (negotiation === 'diffie-hellman-group1-sha1') {
                 // ultimately generate shared secret K and an exchange hash H
-                var K = null, H = null;
                 var p = 331; // a large safe prime
                 
                 // generator for a subgroup of GF(p)
                 // meaning: select an element from [1..p-1], inclusive
+                
                 var g = Math.ceil(Math.random() * (p - 1));
                 
                 // find the order of g, q, such that g**q == 1
                 console.log('Computing...');
+                
                 var gq = g;
                 for (var q = 1; gq % p !== 1; q++) {
                     gq = (gq * g) % p;
@@ -61,20 +62,27 @@ function session (opts, stream) {
                 var y = Math.ceil(Math.random() * (q - 1));
                 
                 this
-                    .word8('kexdh')
+                    .tap(frame.unpack('kexdh'))
                     .tap(function (vars) {
-console.log(vars.kexdh);
-                        if (vars.kexdh !== constants.magic.kexdh_init) {
+console.dir(vars.kexdh);
+                        var kexdh = vars.kexdh.payload;
+                        if (kexdh[0] !== constants.magic.kexdh_init) {
                             console.error('Non-kexdh follows'
                                 + ' diffie-hellman negotation');
                             stream.end();
                         }
-                    })
-                    .word32be('e.length')
-                    .buffer('e.buffer', 'e.length')
-                    .tap(function (vars) {
-                        K = Math.pow(e, y) % p;
-                        console.dir({ K : K });
+                        
+                        var e = bigint.pack(
+                            Binary.parse(kexdh)
+                                .skip(1)
+                                .word32be('length')
+                                .buffer('e', 'length')
+                                .vars.e
+                        );
+                        
+                        var K = e.powm(y, p);
+                        
+                        console.dir({ e : e, K : K });
                     })
                 ;
             }
