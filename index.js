@@ -1,3 +1,5 @@
+var crypto = require('crypto');
+
 var net = require('net');
 var Binary = require('binary');
 var Put = require('put');
@@ -12,12 +14,8 @@ module.exports = function (opts) {
 };
 
 function session (opts, stream) {
-    Put()
-        .put(new Buffer(
-            'SSH-2.0-' + (opts.serverName || 'node-ssh-server') + '\r\n'
-        ))
-        .write(stream)
-    ;
+    var ident = 'SSH-2.0-' + (opts.serverName || 'node-ssh-server');
+    Put().put(new Buffer(ident + '\r\n')).write(stream);
     
     Binary(stream)
         .scan('client.version', '\r\n')
@@ -37,35 +35,18 @@ function session (opts, stream) {
             else {
                 frame.pack(8, keyxRes.buffer).write(stream);
                 vars.choices = keyxRes.choices;
+                vars.keyxRes = keyxRes;
             }
         })
         .tap(function (vars) {
             var negotiation = vars.choices.kex_algorithms.serverName;
             if (negotiation === 'diffie-hellman-group1-sha1') {
-                // ultimately generate shared secret K and an exchange hash H
-                var p = 331; // a large safe prime
-                
-                // generator for a subgroup of GF(p)
-                // meaning: select an element from [1..p-1], inclusive
-                
-                var g = Math.ceil(Math.random() * (p - 1));
-                
-                // find the order of g, q, such that g**q == 1
-                console.log('Computing...');
-                
-                var gq = g;
-                for (var q = 1; gq % p !== 1; q++) {
-                    gq = (gq * g) % p;
-                }
-                console.dir([ q, gq ]);
-                
-                var y = Math.ceil(Math.random() * (q - 1));
                 
                 this
                     .tap(frame.unpack('kexdh'))
-                    .tap(function (vars) {
-console.dir(vars.kexdh);
-                        var kexdh = vars.kexdh.payload;
+                    .tap(function (kvars) {
+console.dir(kvars.kexdh);
+                        var kexdh = kvars.kexdh.payload;
                         if (kexdh[0] !== constants.magic.kexdh_init) {
                             console.error('Non-kexdh follows'
                                 + ' diffie-hellman negotation');
@@ -79,10 +60,18 @@ console.dir(vars.kexdh);
                                 .buffer('e', 'length')
                                 .vars.e
                         );
+                        var sign = crypto.createSign('DSA');
+                        sign.update(vars.client.version); // V_S
+                        sign.update(ident); // V_C
+                        sign.update(opts.dss.pubkey); // K_S
+                        sign.update(kexdh); // I_C
+                        sign.update(vars.keyxRes.buffer); // I_S
+                        var signed = new Buffer(
+                            sign.sign(opts.dss.privkey, 'base64'),
+                            'base64'
+                        );
                         
-                        var K = e.powm(y, p);
-                        
-                        console.dir({ e : e, K : K });
+                        console.dir(signed);
                     })
                 ;
             }
