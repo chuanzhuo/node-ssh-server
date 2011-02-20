@@ -8,12 +8,14 @@ var bigint = require('bigint');
 var constants = require('./lib/constants');
 var keyExchange = require('./lib/kex');
 var frame = require('./lib/frame');
+var dss = require('./lib/dss');
 
 module.exports = function (opts) {
-    return net.createServer(session.bind({}, opts || {}));
+    var gen = dss.generate();
+    return net.createServer(session.bind({}, gen, opts || {}));
 };
 
-function session (opts, stream) {
+function session (gen, opts, stream) {
     var ident = 'SSH-2.0-' + (opts.serverName || 'node-ssh-server');
     Put().put(new Buffer(ident + '\r\n')).write(stream);
     
@@ -45,7 +47,6 @@ function session (opts, stream) {
                 this
                     .tap(frame.unpack('kexdh'))
                     .tap(function (kvars) {
-console.dir(kvars.kexdh);
                         var kexdh = kvars.kexdh.payload;
                         if (kexdh[0] !== constants.magic.kexdh_init) {
                             console.error('Non-kexdh follows'
@@ -53,23 +54,76 @@ console.dir(kvars.kexdh);
                             stream.end();
                         }
                         
-                        var e = bigint.pack(
+                        var e = bigint.fromBuffer(
                             Binary.parse(kexdh)
                                 .skip(1)
                                 .word32be('length')
                                 .buffer('e', 'length')
                                 .vars.e
                         );
+                        
+                        var session = gen.session();
+                        
+                        function ipack (buf) {
+                            return Put().word32be(buf.length).buffer(buf);
+                        }
+                        
+                        var f = gen.g.powm(session.y, gen.p);
+                        var fbuf = ipack(f.toBuffer());
+                        
+                        var K = e.powm(session.y, gen.p);
+                        var Kbuf = ipack(K.toBuffer());
+                        
+                        var K_S = Put() // K_S
+                            .word32be(opts.dss.pubkey)
+                            .put(new Buffer(opts.dss.pubkey))
+                            .buffer()
+                        ;
+                        
                         var sign = crypto.createSign('DSA');
-                        sign.update(vars.client.version); // V_S
-                        sign.update(ident); // V_C
-                        sign.update(opts.dss.pubkey); // K_S
-                        sign.update(kexdh); // I_C
-                        sign.update(vars.keyxRes.buffer); // I_S
-                        var signed = new Buffer(
-                            sign.sign(opts.dss.privkey, 'base64'),
-                            'base64'
+                        
+                        sign.update(Put() // V_S
+                            .word32be(vars.client.version.length)
+                            .put(vars.client.version)
+                            .buffer()
                         );
+                        
+                        sign.update(Put() // V_C
+                            .word32be(ident.length)
+                            .put(new Buffer(ident))
+                            .buffer()
+                        );
+                        
+                        sign.update(K_S);
+                        
+                        sign.update(Put() // I_C
+                            .word32be(kexdh.length)
+                            .put(kexdh)
+                            .buffer()
+                        );
+                        
+                        sign.update(Put() // I_S
+                            .word32be(vars.keyxRes.buffer.length)
+                            .put(vars.keyxRes.buffer)
+                            .buffer()
+                        );
+                        
+                        sign.update(kexdh.slice(1)) // e
+                        
+                        sign.update(fbuf);
+                        sign.update(Kbuf);
+                        
+                        var signed = new Buffer(
+                            sign.sign(opts.dss.privkey, 'base64'), 'base64'
+                        );
+                        
+                        Put()
+                            .put(K_S)
+                            .put(fbuf)
+                            .word32be(signed.length)
+                            .put(signed)
+                            .write(stream)
+                        ;
                         
                         console.dir(signed);
                     })
