@@ -65,7 +65,7 @@ function session (gen, opts, stream) {
                         var session = gen.session();
                         
                         function ipack (buf) {
-                            return Put().word32be(buf.length).buffer(buf);
+                            return Put().word32be(buf.length).put(buf).buffer();
                         }
                         
                         var f = gen.g.powm(session.y, gen.p);
@@ -117,13 +117,14 @@ function session (gen, opts, stream) {
                             sign.sign(opts.dss.privkey, 'base64'), 'base64'
                         );
                         
-                        Put()
+                        frame.pack(8, Put()
+                            .word8(constants.magic.kexdh_reply)
                             .put(K_S)
                             .put(fbuf)
                             .word32be(signed.length)
                             .put(signed)
-                            .write(stream)
-                        ;
+                            .buffer()
+                        ).write(stream);
                         
                         console.dir(signed);
                     })
