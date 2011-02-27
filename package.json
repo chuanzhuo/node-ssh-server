@@ -16,7 +16,7 @@
         "put" : ">=0.0.1",
         "binary" : ">=0.1.5",
         "hashish" : ">=0.0.1",
-        "bigint" : ">=0.0.4"
+        "bigint" : ">=0.0.9"
     },
     "author" : {
         "name" : "James Halliday",
