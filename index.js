@@ -5,19 +5,23 @@ var Put = require('put');
 var constants = require('./lib/constants');
 var keyExchange = require('./lib/kex');
 var frame = require('./lib/frame');
-var dss = require('./lib/dss');
+
+var keyx = require('keyx');
 
 module.exports = function (opts) {
-    var gen = dss.generate(opts.dss);
-    return net.createServer(session.bind({}, gen, opts || {}));
+    return net.createServer(function (stream) {
+        session(opts || {}, stream)
+    });
 };
 
-function session (gen, opts, stream) {
-    var ident = 'SSH-2.0-' + (opts.serverName || 'node-ssh-server');
-    Put().put(new Buffer(ident + '\r\n')).write(stream);
+function session (opts, stream) {
+    var ident = new Buffer('SSH-2.0-' + (opts.serverName || 'node-ssh-server'));
+    Put().put(ident).put(new Buffer('\r\n')).write(stream);
+    
+    var keypair = keyx(opts);
     
     Binary(stream)
-        .scan('client.version', '\r\n')
+        .scan('client.ident', '\r\n')
         .tap(frame.unpack('keyframe'))
         .tap(function (vars) {
             var keyxReq = keyExchange.unpack(vars.keyframe.payload);
@@ -50,16 +54,19 @@ function session (gen, opts, stream) {
                 this
                     .tap(frame.unpack('kexdh'))
                     .tap(function (kvars) {
-                        vars.dh = kvars;
-                        neg(gen, vars, function (err, reply) {
-                            if (err) {
-                                console.error(err);
-                                stream.end();
-                            }
-                            else {
-                                reply.write(stream);
-                            }
+                        var buf = keypair.challenge({
+                            client : {
+                                ident : vars.client.ident,
+                                kexinit : kvars.kexdh.payload,
+                            },
+                            server : {
+                                ident : ident,
+                                kexinit : vars.keyxRes.buffer,
+                            },
                         });
+                        stream.write(buf);
+console.log('--- challenged ---');
+console.log(buf);
                     })
                 ;
             }
