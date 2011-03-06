@@ -68,7 +68,6 @@ function session (opts, stream) {
                         var buf = keypair.challenge(kexdh, vars.challenge);
                         frame.pack(8, buf).write(stream);
 console.log('--- challenged ---');
-console.dir(algo);
 console.log(buf);
                     })
                     .word32be('service.length')
