@@ -38,7 +38,17 @@ function session (opts, stream) {
             else {
                 frame.pack(8, keyxRes.buffer).write(stream);
                 vars.choices = keyxRes.choices;
-                vars.keyxRes = keyxRes;
+                
+                vars.challenge = {
+                    client : {
+                        ident : vars.client.ident,
+                        kexinit : keyxReq.buffer,
+                    },
+                    server : {
+                        ident : ident,
+                        kexinit : keyxRes.buffer,
+                    },
+                };
             }
         })
         .tap(function (vars) {
@@ -54,19 +64,18 @@ function session (opts, stream) {
                 this
                     .tap(frame.unpack('kexdh'))
                     .tap(function (kvars) {
-                        var buf = keypair.challenge({
-                            client : {
-                                ident : vars.client.ident,
-                                kexinit : kvars.kexdh.payload,
-                            },
-                            server : {
-                                ident : ident,
-                                kexinit : vars.keyxRes.buffer,
-                            },
-                        });
-                        stream.write(buf);
+                        var kexdh = kvars.kexdh.payload;
+                        var buf = keypair.challenge(kexdh, vars.challenge);
+                        frame.pack(8, buf).write(stream);
 console.log('--- challenged ---');
+console.dir(algo);
 console.log(buf);
+                    })
+                    .word32be('service.length')
+                    .buffer('service.buffer')
+                    .tap(function (kvars) {
+console.log('service');
+console.dir(kvars.service);
                     })
                 ;
             }
