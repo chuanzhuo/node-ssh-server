@@ -53,31 +53,23 @@ function session (opts, stream) {
         })
         .tap(function (vars) {
             var algo = vars.choices.kex_algorithms.serverName;
-            var neg = keyExchange.negotiations[algo];
-            vars.ident = ident;
-            
-            if (!neg) {
-                console.error('Unrecognized negotation algorithm ' + algo);
-                stream.end();
-            }
-            else {
-                this
-                    .tap(frame.unpack('kexdh'))
-                    .tap(function (kvars) {
-                        var kexdh = kvars.kexdh.payload;
-                        var buf = keypair.challenge(kexdh, vars.challenge);
-                        frame.pack(8, buf).write(stream);
+            this
+                .tap(frame.unpack('kexdh'))
+                .tap(function (kvars) {
+                    var kexdh = kvars.kexdh.payload;
+                    var challenge = vars.challenge;
+                    var buf = keypair.challenge(algo, kexdh, challenge);
+                    frame.pack(8, buf).write(stream);
 console.log('--- challenged ---');
 console.log(buf);
-                    })
-                    .word32be('service.length')
-                    .buffer('service.buffer')
-                    .tap(function (kvars) {
+                })
+                .word32be('service.length')
+                .buffer('service.buffer')
+                .tap(function (kvars) {
 console.log('service');
 console.dir(kvars.service);
-                    })
-                ;
-            }
+                })
+            ;
         })
     ;
 }
