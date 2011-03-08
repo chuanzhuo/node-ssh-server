@@ -57,6 +57,8 @@ function session (opts, stream) {
                 .tap(function (kvars) {
                     var kexdh = kvars.kexdh.payload;
                     var cres = keypair.challenge(kexdh, vars.challenge);
+console.dir(cres.reply);
+console.dir(frame.pack(8, cres.reply, cres.mac).buffer());
                     frame.pack(8, cres.reply, cres.mac).write(stream);
                 })
                 .word32be('service.length')
